@@ -1,0 +1,21 @@
+{
+  "name": "telegram-growth-platform",
+  "private": true,
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev -w server\" \"npm run worker -w server\" \"npm run dev -w web\"",
+    "api": "npm run dev -w server",
+    "worker:only": "npm run worker -w server",
+    "dev:api": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w server && npm run build -w web",
+    "start:api": "npm run start -w server",
+    "start:worker": "npm run start:worker -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

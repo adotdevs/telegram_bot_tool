@@ -1,0 +1,102 @@
+import { Router } from "express";
+import { z } from "zod";
+import { TelegramAccount } from "../models/TelegramAccount.js";
+import { createEmptyClient, sendLoginCode, completeLoginWithOtp } from "../telegram/gramClient.js";
+import { encryptSession } from "../crypto/sessionCrypto.js";
+import { requireAuth } from "../middleware/auth.js";
+import { logAction } from "../services/logger.js";
+const r = Router();
+const sendCodeBody = z.object({ phone: z.string().min(8) });
+r.post("/send-code", requireAuth, async (req, res) => {
+    const body = sendCodeBody.safeParse(req.body);
+    if (!body.success) {
+        res.status(400).json({ error: body.error.flatten() });
+        return;
+    }
+    const client = await createEmptyClient();
+    try {
+        const phoneCodeHash = await sendLoginCode(client, body.data.phone);
+        res.json({ phoneCodeHash, phone: body.data.phone });
+    }
+    catch (e) {
+        res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
+    }
+    finally {
+        await client.disconnect();
+    }
+});
+const verifyBody = z.object({
+    phone: z.string(),
+    phoneCode: z.string(),
+    phoneCodeHash: z.string(),
+    password: z.string().optional(),
+    label: z.string().optional(),
+    proxyUrl: z.string().optional(),
+});
+r.post("/verify", requireAuth, async (req, res) => {
+    const body = verifyBody.safeParse(req.body);
+    if (!body.success) {
+        res.status(400).json({ error: body.error.flatten() });
+        return;
+    }
+    const client = await createEmptyClient();
+    try {
+        const result = await completeLoginWithOtp(client, body.data.phone, body.data.phoneCode, body.data.phoneCodeHash, body.data.password);
+        if (!result.ok) {
+            if ("needsPassword" in result && result.needsPassword) {
+                res.status(403).json({ needsPassword: true });
+                return;
+            }
+            res.status(400).json({ error: "error" in result ? result.error : "Login failed" });
+            return;
+        }
+        const sessionEncrypted = encryptSession(result.sessionString);
+        const acc = await TelegramAccount.create({
+            phoneNumber: body.data.phone,
+            sessionEncrypted,
+            label: body.data.label,
+            proxyUrl: body.data.proxyUrl,
+            status: "active",
+        });
+        await logAction({ action: "login", message: `Telegram account linked ${acc.phoneNumber}` });
+        res.json({
+            id: acc._id.toString(),
+            phoneNumber: acc.phoneNumber,
+            label: acc.label,
+            status: acc.status,
+            warmUpMode: acc.warmUpMode,
+        });
+    }
+    finally {
+        await client.disconnect();
+    }
+});
+r.get("/", requireAuth, async (_req, res) => {
+    const list = await TelegramAccount.find().select("-sessionEncrypted").lean();
+    res.json(list);
+});
+r.patch("/:id", requireAuth, async (req, res) => {
+    const patch = z
+        .object({
+        warmUpMode: z.boolean().optional(),
+        proxyUrl: z.string().nullable().optional(),
+        status: z.enum(["active", "paused", "disabled"]).optional(),
+    })
+        .safeParse(req.body);
+    if (!patch.success) {
+        res.status(400).json({ error: patch.error.flatten() });
+        return;
+    }
+    const acc = await TelegramAccount.findByIdAndUpdate(req.params.id, patch.data, { new: true }).select("-sessionEncrypted");
+    if (!acc) {
+        res.status(404).json({ error: "Not found" });
+        return;
+    }
+    res.json(acc);
+});
+r.delete("/:id", requireAuth, async (req, res) => {
+    await TelegramAccount.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+});
+export default r;
+//# sourceMappingURL=telegramAccounts.js.map
