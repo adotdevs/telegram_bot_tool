@@ -1,1 +1,1 @@
-{"version":3,"file":"connection.d.ts","sourceRoot":"","sources":["../../src/queues/connection.ts"],"names":[],"mappings":"AAQA,wBAAgB,WAAW,QAE1B;AAED,eAAO,MAAM,UAAU,KAAgB,CAAC"}
+{"version":3,"file":"connection.d.ts","sourceRoot":"","sources":["../../src/queues/connection.ts"],"names":[],"mappings":"AASA;;;;GAIG;AACH,wBAAgB,WAAW,QAsB1B;AAED,eAAO,MAAM,UAAU,KAAgB,CAAC"}

@@ -3,6 +3,23 @@ import { decryptSession } from "../crypto/sessionCrypto.js";
 import { assertTelegramConfigured, getRuntimeSettings } from "../services/runtimeSettings.js";
 const { StringSession } = sessions;
 const { computeCheck } = tgPassword;
+/** GramJS RPC errors expose `errorMessage` (e.g. PHONE_CODE_INVALID). */
+export function formatTelegramAuthError(e) {
+    if (e && typeof e === "object" && "errorMessage" in e) {
+        const em = String(e.errorMessage || "");
+        if (em)
+            return em;
+    }
+    if (e instanceof Error)
+        return e.message;
+    return String(e);
+}
+function normalizeLoginPhone(phone) {
+    return phone.trim().replace(/\s+/g, "");
+}
+function normalizeOtp(code) {
+    return code.replace(/[\s-]/g, "");
+}
 function parseProxyUrl(urlStr) {
     if (!urlStr?.trim())
         return undefined;
@@ -43,32 +60,77 @@ export async function createClientForAccount(account) {
         ...(proxy ? { proxy } : {}),
     });
 }
-export async function createEmptyClient() {
+export async function createEmptyClient(opts) {
     const cfg = await getRuntimeSettings();
     assertTelegramConfigured(cfg);
+    const proxy = parseProxyUrl(opts?.proxyUrl);
+    const useWSS = !proxy;
     return new TelegramClient(new StringSession(""), cfg.telegramApiId, cfg.telegramApiHash, {
-        connectionRetries: 5,
+        connectionRetries: 10,
+        timeout: 30,
+        /** 443 when no proxy; plain MTProto when proxy is set (library disallows WSS+proxy). */
+        useWSS,
+        ...(proxy ? { proxy } : {}),
+    });
+}
+/**
+ * OTP verify must continue the same MTProto session as `sendCode` (same auth key + DC).
+ * A fresh empty client often yields PHONE_CODE_EXPIRED even when the code and hash are correct.
+ */
+export async function createClientForOtpVerify(loginSession, opts) {
+    const raw = loginSession?.trim() ?? "";
+    if (!raw) {
+        return createEmptyClient(opts);
+    }
+    const cfg = await getRuntimeSettings();
+    assertTelegramConfigured(cfg);
+    const proxy = parseProxyUrl(opts?.proxyUrl);
+    const useWSS = !proxy;
+    return new TelegramClient(new StringSession(raw), cfg.telegramApiId, cfg.telegramApiHash, {
+        connectionRetries: 10,
+        timeout: 30,
+        useWSS,
+        ...(proxy ? { proxy } : {}),
     });
 }
 export async function sendLoginCode(client, phone) {
     const c = await getRuntimeSettings();
     assertTelegramConfigured(c);
-    await client.connect();
-    const sent = await client.sendCode({ apiId: c.telegramApiId, apiHash: c.telegramApiHash }, phone);
-    return sent.phoneCodeHash;
+    const pn = normalizeLoginPhone(phone);
+    const connected = await client.connect();
+    if (!connected) {
+        throw new Error("Could not connect to Telegram. Try again, toggle VPN off/on, or allow outbound HTTPS (443).");
+    }
+    /**
+     * Do not pass forceSMS=true: GramJS then calls auth.ResendCode for non-SMS deliveries, which often fails with
+     * SEND_CODE_UNAVAILABLE (406) for many countries/carriers. Default path uses Telegram's chosen channel (in-app or SMS).
+     */
+    const sent = await client.sendCode({ apiId: c.telegramApiId, apiHash: c.telegramApiHash }, pn);
+    return { phoneCodeHash: sent.phoneCodeHash, phone: pn, isCodeViaApp: sent.isCodeViaApp };
 }
 export async function completeLoginWithOtp(client, phone, phoneCode, phoneCodeHash, password) {
-    await client.connect();
+    const pn = normalizeLoginPhone(phone);
+    const pc = normalizeOtp(phoneCode);
+    const hash = phoneCodeHash.trim();
+    const connected = await client.connect();
+    if (!connected) {
+        return {
+            ok: false,
+            error: "Could not connect to Telegram for sign-in. Retry, or try another network (e.g. mobile hotspot).",
+        };
+    }
     try {
         await client.invoke(new Api.auth.SignIn({
-            phoneNumber: phone,
-            phoneCodeHash,
-            phoneCode,
+            phoneNumber: pn,
+            phoneCodeHash: hash,
+            phoneCode: pc,
         }));
     }
     catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes("SESSION_PASSWORD_NEEDED")) {
+        const rpc = formatTelegramAuthError(e);
+        const msg = rpc + (e instanceof Error && e.message !== rpc ? ` (${e.message})` : "");
+        const needPw = rpc === "SESSION_PASSWORD_NEEDED" || msg.includes("SESSION_PASSWORD_NEEDED");
+        if (needPw) {
             if (!password)
                 return { ok: false, needsPassword: true };
             try {
@@ -77,10 +139,16 @@ export async function completeLoginWithOtp(client, phone, phoneCode, phoneCodeHa
                 await client.invoke(new Api.auth.CheckPassword({ password: check }));
             }
             catch (e2) {
-                return { ok: false, error: e2 instanceof Error ? e2.message : String(e2) };
+                return { ok: false, error: formatTelegramAuthError(e2) };
             }
         }
         else {
+            if (rpc === "PHONE_CODE_INVALID" || rpc === "PHONE_CODE_EXPIRED") {
+                return {
+                    ok: false,
+                    error: `${rpc}: Telegram invalidated this attempt (wrong code, stale hash, or waited too long). Tap Send code again and enter only the newest code from SMS or the Telegram app prompt (digits only). Each Send code replaces the previous one.`,
+                };
+            }
             return { ok: false, error: msg };
         }
     }

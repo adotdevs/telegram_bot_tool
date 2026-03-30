@@ -1,22 +1,37 @@
 import { Router } from "express";
 import { z } from "zod";
 import { TelegramAccount } from "../models/TelegramAccount.js";
-import { createEmptyClient, sendLoginCode, completeLoginWithOtp } from "../telegram/gramClient.js";
+import { createClientForOtpVerify, createEmptyClient, sendLoginCode, completeLoginWithOtp, } from "../telegram/gramClient.js";
 import { encryptSession } from "../crypto/sessionCrypto.js";
 import { requireAuth } from "../middleware/auth.js";
 import { logAction } from "../services/logger.js";
 const r = Router();
-const sendCodeBody = z.object({ phone: z.string().min(8) });
+const sendCodeBody = z.object({
+    phone: z.string().min(8),
+    proxyUrl: z.string().optional(),
+});
 r.post("/send-code", requireAuth, async (req, res) => {
     const body = sendCodeBody.safeParse(req.body);
     if (!body.success) {
         res.status(400).json({ error: body.error.flatten() });
         return;
     }
-    const client = await createEmptyClient();
+    const client = await createEmptyClient({ proxyUrl: body.data.proxyUrl });
     try {
-        const phoneCodeHash = await sendLoginCode(client, body.data.phone);
-        res.json({ phoneCodeHash, phone: body.data.phone });
+        const out = await sendLoginCode(client, body.data.phone);
+        const loginSession = String(client.session.save() ?? "");
+        if (!loginSession.trim()) {
+            res.status(500).json({ error: "Telegram did not return a pending session; try Send code again." });
+            return;
+        }
+        res.json({
+            phoneCodeHash: out.phoneCodeHash,
+            phone: out.phone,
+            isCodeViaApp: out.isCodeViaApp,
+            /** Pass back to /verify with the same phone + hash (paired MTProto session). */
+            loginSession,
+            requestedAt: new Date().toISOString(),
+        });
     }
     catch (e) {
         res.status(400).json({ error: e instanceof Error ? e.message : String(e) });
@@ -29,6 +44,8 @@ const verifyBody = z.object({
     phone: z.string(),
     phoneCode: z.string(),
     phoneCodeHash: z.string(),
+    /** From send-code response; required for reliable SignIn (same MTProto session as sendCode). */
+    loginSession: z.string().min(1),
     password: z.string().optional(),
     label: z.string().optional(),
     proxyUrl: z.string().optional(),
@@ -39,7 +56,7 @@ r.post("/verify", requireAuth, async (req, res) => {
         res.status(400).json({ error: body.error.flatten() });
         return;
     }
-    const client = await createEmptyClient();
+    const client = await createClientForOtpVerify(body.data.loginSession, { proxyUrl: body.data.proxyUrl });
     try {
         const result = await completeLoginWithOtp(client, body.data.phone, body.data.phoneCode, body.data.phoneCodeHash, body.data.password);
         if (!result.ok) {
