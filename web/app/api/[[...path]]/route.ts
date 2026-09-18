@@ -24,12 +24,22 @@ async function proxy(req: NextRequest, segments: string[] | undefined): Promise<
     init.body = await req.arrayBuffer();
   }
 
-  const res = await fetch(target, init);
-  const buf = await res.arrayBuffer();
-  const out = new NextResponse(buf, { status: res.status });
-  const ct = res.headers.get("content-type");
-  if (ct) out.headers.set("content-type", ct);
-  return out;
+  try {
+    const res = await fetch(target, init);
+    const buf = await res.arrayBuffer();
+    const out = new NextResponse(buf, { status: res.status });
+    const ct = res.headers.get("content-type");
+    if (ct) out.headers.set("content-type", ct);
+    return out;
+  } catch (err: any) {
+    console.error("[api-proxy] Failed to connect to backend:", target, err?.message);
+    return NextResponse.json(
+      {
+        error: `Cannot reach backend API at ${backend}. Make sure your backend service is running and API_INTERNAL_URL is set in Vercel environment variables. Details: ${err?.message || err}`,
+      },
+      { status: 502 }
+    );
+  }
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path?: string[] }> }) {

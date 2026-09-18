@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 
 type TelegramAccount = {
@@ -63,6 +64,19 @@ export default function AutoPostPage() {
   const [formUseAi, setFormUseAi] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // AI Generation & Response Testing State
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiTesting, setAiTesting] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [showAiGenerator, setShowAiGenerator] = useState(false);
+  const [aiResult, setAiResult] = useState<{
+    message: string;
+    model: string;
+    tokensUsed?: number;
+    mode: string;
+  } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   async function loadData() {
     try {
@@ -164,6 +178,59 @@ export default function AutoPostPage() {
       await loadData();
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+
+  async function handleGenerateAiMessage(customPrompt?: string) {
+    setAiGenerating(true);
+    setAiError(null);
+    try {
+      const p = customPrompt ?? aiPrompt;
+      const res = await api<{ message: string; model: string; tokensUsed?: number; mode: string }>(
+        "/api/auto-post/generate-ai",
+        {
+          method: "POST",
+          json: {
+            prompt: p.trim() || undefined,
+            taskName: formName.trim() || undefined,
+            mode: "generate",
+          },
+        }
+      );
+      setAiResult(res);
+      // Automatically enable AI Variations toggle if generated
+      setFormUseAi(true);
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : "AI generation failed");
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
+  async function handleTestAiResponse(templateOverride?: string) {
+    const textToTest = templateOverride ?? formTemplate;
+    if (!textToTest.trim()) {
+      setAiError("Please enter or generate a message template first to test.");
+      return;
+    }
+    setAiTesting(true);
+    setAiError(null);
+    try {
+      const res = await api<{ message: string; model: string; tokensUsed?: number; mode: string }>(
+        "/api/auto-post/generate-ai",
+        {
+          method: "POST",
+          json: {
+            template: textToTest,
+            mode: "test",
+          },
+        }
+      );
+      setAiResult(res);
+    } catch (e: unknown) {
+      setAiError(e instanceof Error ? e.message : "AI response test failed");
+    } finally {
+      setAiTesting(false);
     }
   }
 
@@ -367,16 +434,212 @@ export default function AutoPostPage() {
             </p>
           </div>
 
-          {/* Message Template with Spintax */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                Message Content & Spintax Template *
-              </label>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400">
-                Spintax enabled: &#123;Option 1|Option 2&#125;
-              </span>
+          {/* Message Template with Spintax & AI Controls */}
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                  Message Content & Spintax Template *
+                </label>
+                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                  Spintax Enabled
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAiGenerator(!showAiGenerator);
+                    setAiError(null);
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                    showAiGenerator
+                      ? "border-purple-500 bg-purple-50 text-purple-700 dark:border-purple-500/50 dark:bg-purple-950/40 dark:text-purple-300"
+                      : "border-purple-300 bg-white text-purple-700 hover:bg-purple-50 dark:border-purple-800/60 dark:bg-zinc-800 dark:text-purple-300 dark:hover:bg-purple-950/30"
+                  }`}
+                >
+                  <span>✨</span>
+                  <span>{showAiGenerator ? "Hide AI Generator" : "Generate with OpenAI"}</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={aiTesting}
+                  onClick={() => handleTestAiResponse()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-blue-300 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50 dark:border-blue-800/60 dark:bg-zinc-800 dark:text-blue-300 dark:hover:bg-blue-950/30"
+                >
+                  <span>{aiTesting ? "⏳" : "🧪"}</span>
+                  <span>{aiTesting ? "Testing..." : "Test AI Response"}</span>
+                </button>
+              </div>
             </div>
+
+            {/* AI Generator Panel */}
+            {showAiGenerator && (
+              <div className="space-y-3 rounded-xl border border-purple-200 bg-purple-50/50 p-4 dark:border-purple-900/40 dark:bg-purple-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-600 text-[10px] text-white">
+                      AI
+                    </span>
+                    <h4 className="text-xs font-semibold text-purple-900 dark:text-purple-200">
+                      OpenAI Promotional Message Generator
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-purple-600 dark:text-purple-400">
+                    Creates Spintax format &#123;Option 1|Option 2&#125; automatically
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
+                  <input
+                    type="text"
+                    placeholder="Topic or goal: e.g. Daily crypto signals with VIP analysis group"
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="w-full rounded-lg border border-purple-200 bg-white px-3 py-2 text-xs text-zinc-900 outline-none transition focus:border-purple-500 focus:ring-1 focus:ring-purple-500 dark:border-purple-800/60 dark:bg-zinc-900 dark:text-zinc-100"
+                  />
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Quick topics:</span>
+                    {[
+                      "Crypto signals & market calls",
+                      "Exclusive SaaS / tool promo",
+                      "Community launch & airdrop",
+                      "Forex / Trading club invite",
+                    ].map((topic) => (
+                      <button
+                        key={topic}
+                        type="button"
+                        onClick={() => {
+                          setAiPrompt(topic);
+                          handleGenerateAiMessage(topic);
+                        }}
+                        className="rounded border border-purple-200 bg-white px-2 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-zinc-800 dark:text-purple-300 dark:hover:bg-purple-950/40"
+                      >
+                        + {topic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    disabled={aiGenerating}
+                    onClick={() => handleGenerateAiMessage()}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 disabled:opacity-50 dark:bg-purple-700"
+                  >
+                    {aiGenerating ? (
+                      <>
+                        <span className="animate-spin">🔄</span> Generating Template...
+                      </>
+                    ) : (
+                      <>
+                        <span>✨</span> Generate Spintax Message
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* AI Error Alert with direct link to Settings */}
+            {aiError && (
+              <div className="flex items-start justify-between rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+                <div>
+                  <span className="font-semibold">⚠️ AI Alert:</span> {aiError}
+                  {aiError.toLowerCase().includes("openai") && (
+                    <Link
+                      href="/settings"
+                      className="ml-2 font-semibold underline hover:text-amber-900 dark:hover:text-amber-100"
+                    >
+                      Configure OpenAI API Key in Settings →
+                    </Link>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAiError(null)}
+                  className="ml-2 text-amber-600 hover:text-amber-800 dark:text-amber-400"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Live Telegram Message Preview Card */}
+            {aiResult && (
+              <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">
+                      {aiResult.mode === "test" ? "📱" : "✨"}
+                    </span>
+                    <span className="text-xs font-semibold text-blue-950 dark:text-blue-200">
+                      {aiResult.mode === "test"
+                        ? "Live Telegram Message Preview (What members will see):"
+                        : "AI Generated Template Result:"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-mono text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      {aiResult.model}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAiResult(null)}
+                      className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+
+                {/* Telegram Message Bubble Mock */}
+                <div className="rounded-lg border border-zinc-200 bg-white p-3.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-800/90">
+                  <div className="mb-1.5 flex items-center justify-between border-b border-zinc-100 pb-1 text-[11px] text-zinc-400 dark:border-zinc-700/50">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
+                      Telegram Group Auto-Poster
+                    </span>
+                    <span>Just now</span>
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm text-zinc-800 dark:text-zinc-100">
+                    {aiResult.message}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  {aiResult.mode === "test" ? (
+                    <button
+                      type="button"
+                      disabled={aiTesting}
+                      onClick={() => handleTestAiResponse()}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      <span>🔄</span> Test Another AI Variation
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-zinc-500">
+                      Click below to insert this into your message template:
+                    </span>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    {aiResult.mode !== "test" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormTemplate(aiResult.message);
+                        }}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 dark:bg-emerald-700"
+                      >
+                        ✓ Apply to Message Template
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <textarea
               required
               rows={4}
@@ -528,6 +791,17 @@ export default function AutoPostPage() {
                         className="inline-flex items-center gap-1 rounded-md bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
                       >
                         ⚡ Run Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleTestAiResponse(item.messageTemplate);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        title="Test how OpenAI will rewrite this template"
+                        className="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                      >
+                        🧪 Test AI
                       </button>
                       <button
                         type="button"
