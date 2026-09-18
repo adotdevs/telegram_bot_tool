@@ -12,6 +12,7 @@ import logRoutes from "./routes/logs.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import blacklistRoutes from "./routes/blacklist.js";
 import settingsRoutes from "./routes/settings.js";
+import autoPostRoutes from "./routes/autoPost.js";
 async function main() {
     await connectMongo();
     await refreshCorsFromSettings();
@@ -40,6 +41,7 @@ async function main() {
     app.use("/api/dashboard", dashboardRoutes);
     app.use("/api/blacklist", blacklistRoutes);
     app.use("/api/settings", settingsRoutes);
+    app.use("/api/auto-post", autoPostRoutes);
     app.use((err, _req, res, _next) => {
         console.error("[api]", err);
         const msg = err instanceof Error ? err.message : "Internal server error";

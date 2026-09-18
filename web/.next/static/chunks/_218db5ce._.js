@@ -84,6 +84,10 @@ const links = [
         "Campaigns"
     ],
     [
+        "/auto-post",
+        "Auto Poster"
+    ],
+    [
         "/accounts",
         "Accounts"
     ],
@@ -115,7 +119,7 @@ function Nav() {
                         children: "TG Growth"
                     }, void 0, false, {
                         fileName: "[project]/web/components/Nav.tsx",
-                        lineNumber: 27,
+                        lineNumber: 29,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("nav", {
@@ -128,19 +132,19 @@ function Nav() {
                                 children: label
                             }, href, false, {
                                 fileName: "[project]/web/components/Nav.tsx",
-                                lineNumber: 30,
+                                lineNumber: 32,
                                 columnNumber: 13
                             }, this);
                         })
                     }, void 0, false, {
                         fileName: "[project]/web/components/Nav.tsx",
-                        lineNumber: 28,
+                        lineNumber: 30,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/web/components/Nav.tsx",
-                lineNumber: 26,
+                lineNumber: 28,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -150,13 +154,13 @@ function Nav() {
                 children: "Log out"
             }, void 0, false, {
                 fileName: "[project]/web/components/Nav.tsx",
-                lineNumber: 44,
+                lineNumber: 46,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/web/components/Nav.tsx",
-        lineNumber: 25,
+        lineNumber: 27,
         columnNumber: 5
     }, this);
 }

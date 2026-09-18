@@ -12,6 +12,7 @@ import logRoutes from "./routes/logs.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import blacklistRoutes from "./routes/blacklist.js";
 import settingsRoutes from "./routes/settings.js";
+import autoPostRoutes from "./routes/autoPost.js";
 
 async function main(): Promise<void> {
   await connectMongo();
@@ -45,6 +46,8 @@ async function main(): Promise<void> {
   app.use("/api/dashboard", dashboardRoutes);
   app.use("/api/blacklist", blacklistRoutes);
   app.use("/api/settings", settingsRoutes);
+  app.use("/api/auto-post", autoPostRoutes);
+
 
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error("[api]", err);

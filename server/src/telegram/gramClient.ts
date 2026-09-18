@@ -53,13 +53,17 @@ export async function createClientForAccount(account: TelegramAccountDoc): Promi
   if (!enc) throw new Error("Missing session for account");
   const session = new StringSession(decryptSession(enc));
   const proxy = parseProxyUrl(account.proxyUrl ?? undefined);
+  const useWSS = !proxy;
   return new TelegramClient(session, cfg.telegramApiId, cfg.telegramApiHash, {
     connectionRetries: 5,
+    timeout: 30,
+    useWSS,
     deviceModel: "Growth Console",
     appVersion: "1.0.0",
     ...(proxy ? { proxy } : {}),
   });
 }
+
 
 export type EmptyClientOptions = {
   /** Optional SOCKS proxy — required for login on some networks. Cannot combine with WSS (GramJS). */

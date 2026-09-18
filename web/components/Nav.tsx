@@ -7,10 +7,12 @@ const links = [
   ["/", "Dashboard"],
   ["/settings", "Settings"],
   ["/campaigns", "Campaigns"],
+  ["/auto-post", "Auto Poster"],
   ["/accounts", "Accounts"],
   ["/logs", "Logs"],
   ["/blacklist", "Blacklist"],
 ];
+
 
 export function Nav() {
   const path = usePathname();
