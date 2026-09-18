@@ -31,11 +31,12 @@ async function proxy(req: NextRequest, segments: string[] | undefined): Promise<
     const ct = res.headers.get("content-type");
     if (ct) out.headers.set("content-type", ct);
     return out;
-  } catch (err: any) {
-    console.error("[api-proxy] Failed to connect to backend:", target, err?.message);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[api-proxy] Failed to connect to backend:", target, msg);
     return NextResponse.json(
       {
-        error: `Cannot reach backend API at ${backend}. Make sure your backend service is running and API_INTERNAL_URL is set in Vercel environment variables. Details: ${err?.message || err}`,
+        error: `Cannot reach backend API at ${backend}. Make sure your backend service is running and API_INTERNAL_URL is set in Vercel environment variables. Details: ${msg}`,
       },
       { status: 502 }
     );

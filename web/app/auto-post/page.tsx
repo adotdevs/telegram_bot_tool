@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -48,7 +48,6 @@ export default function AutoPostPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [selectedLogs, setSelectedLogs] = useState<AutoPostSchedule | null>(null);
-  const [, startTransition] = useTransition();
 
   // Form State
   const [showForm, setShowForm] = useState(false);
@@ -102,6 +101,7 @@ export default function AutoPostPage() {
     loadData();
     const interval = setInterval(loadData, 10000); // Poll every 10s for status updates
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCreate(e: React.FormEvent) {
