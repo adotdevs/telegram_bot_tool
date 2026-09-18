@@ -57,6 +57,7 @@ export async function createClientForAccount(account: TelegramAccountDoc): Promi
   return new TelegramClient(session, cfg.telegramApiId, cfg.telegramApiHash, {
     connectionRetries: 5,
     timeout: 30,
+    autoReconnect: false,
     useWSS,
     deviceModel: "Growth Console",
     appVersion: "1.0.0",

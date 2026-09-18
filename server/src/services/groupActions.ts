@@ -204,7 +204,15 @@ export async function postToGroup(
 
   } finally {
     if (!opts.clientRef && ownClient) {
-      await ownClient.disconnect();
+      try {
+        await ownClient.destroy();
+      } catch {
+        try {
+          await ownClient.disconnect();
+        } catch {
+          // ignore
+        }
+      }
     }
   }
 }

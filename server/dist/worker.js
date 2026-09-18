@@ -4,7 +4,7 @@ import { connection } from "./queues/connection.js";
 import { Q_ADD_USER, Q_CAMPAIGN_TICK, Q_SCRAPE, Q_SEND_MESSAGE, Q_AUTO_POST } from "./queues/names.js";
 import { handleAddUser, handleCampaignTick, handleScrape, handleSendMessage, } from "./workers/handlers.js";
 import { handleAutoPost, resumeActiveAutoPostSchedules } from "./workers/autoPostWorker.js";
-async function main() {
+export async function startWorkers() {
     await connectMongo();
     const concurrency = 1;
     const workers = [
@@ -22,8 +22,10 @@ async function main() {
     await resumeActiveAutoPostSchedules();
     console.log("Workers listening on Redis queues (including auto-post)");
 }
-main().catch((e) => {
-    console.error(e);
-    process.exit(1);
-});
+if (process.argv[1] && (process.argv[1].endsWith("worker.js") || process.argv[1].endsWith("worker.ts"))) {
+    startWorkers().catch((e) => {
+        console.error(e);
+        process.exit(1);
+    });
+}
 //# sourceMappingURL=worker.js.map

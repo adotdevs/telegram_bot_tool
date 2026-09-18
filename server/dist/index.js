@@ -13,6 +13,7 @@ import dashboardRoutes from "./routes/dashboard.js";
 import blacklistRoutes from "./routes/blacklist.js";
 import settingsRoutes from "./routes/settings.js";
 import autoPostRoutes from "./routes/autoPost.js";
+import { startWorkers } from "./worker.js";
 async function main() {
     await connectMongo();
     await refreshCorsFromSettings();
@@ -50,6 +51,9 @@ async function main() {
     app.listen(env.PORT, "0.0.0.0", () => {
         console.log(`API http://127.0.0.1:${env.PORT} (bound 0.0.0.0:${env.PORT})`);
     });
+    if (process.env.RUN_WORKER !== "false") {
+        startWorkers().catch((err) => console.error("[worker-init-error]", err));
+    }
 }
 main().catch((e) => {
     console.error(e);

@@ -13,6 +13,7 @@ import dashboardRoutes from "./routes/dashboard.js";
 import blacklistRoutes from "./routes/blacklist.js";
 import settingsRoutes from "./routes/settings.js";
 import autoPostRoutes from "./routes/autoPost.js";
+import { startWorkers } from "./worker.js";
 
 async function main(): Promise<void> {
   await connectMongo();
@@ -58,6 +59,11 @@ async function main(): Promise<void> {
   app.listen(env.PORT, "0.0.0.0", () => {
     console.log(`API http://127.0.0.1:${env.PORT} (bound 0.0.0.0:${env.PORT})`);
   });
+
+  // Start background queue workers alongside the API (for single-service hosting on Render / Railway / VPS)
+  if (process.env.RUN_WORKER !== "false") {
+    startWorkers().catch((err) => console.error("[worker-init-error]", err));
+  }
 }
 
 main().catch((e) => {

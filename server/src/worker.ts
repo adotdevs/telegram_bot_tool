@@ -10,7 +10,7 @@ import {
 } from "./workers/handlers.js";
 import { handleAutoPost, resumeActiveAutoPostSchedules } from "./workers/autoPostWorker.js";
 
-async function main(): Promise<void> {
+export async function startWorkers(): Promise<void> {
   await connectMongo();
 
   const concurrency = 1;
@@ -34,8 +34,10 @@ async function main(): Promise<void> {
   console.log("Workers listening on Redis queues (including auto-post)");
 }
 
-
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Run standalone if launched via node worker.js or tsx worker.ts
+if (process.argv[1] && (process.argv[1].endsWith("worker.js") || process.argv[1].endsWith("worker.ts"))) {
+  startWorkers().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
