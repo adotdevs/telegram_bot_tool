@@ -33,6 +33,7 @@ const schema = z.object({
   PORT: z.coerce.number().default(4000),
   MONGODB_URI: z.string().min(1),
   REDIS_URL: z.string().min(1).default("redis://127.0.0.1:6379"),
+  REDIS_FAMILY: z.coerce.number().optional(),
   JWT_SECRET: z.string().min(16).default("change-me-in-production-32chars"),
   SESSION_ENCRYPTION_KEY: z.string().min(32, "Use 32+ chars for AES-256 key material"),
   /** Optional if set via dashboard App Settings */

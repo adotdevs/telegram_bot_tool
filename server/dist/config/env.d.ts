@@ -3,6 +3,7 @@ export declare const env: {
     PORT: number;
     MONGODB_URI: string;
     REDIS_URL: string;
+    REDIS_FAMILY?: number | undefined;
     JWT_SECRET: string;
     SESSION_ENCRYPTION_KEY: string;
     TELEGRAM_API_ID: number;
