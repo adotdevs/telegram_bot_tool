@@ -7,7 +7,11 @@ let url = env.REDIS_URL.trim().replace(/^["']|["']$/g, "");
 if (url.startsWith("https://") || url.startsWith("http://")) {
     console.error(`[redis] ERROR: REDIS_URL is configured with HTTP(S) protocol: "${url.slice(0, 15)}...". BullMQ requires Redis TCP protocol. Please use the connection string starting with "rediss://" from the Upstash console.`);
 }
-const useTls = url.startsWith("rediss:");
+// Auto-upgrade Upstash redis:// to rediss:// so TLS is always active
+if (url.startsWith("redis://") && url.includes("upstash.io")) {
+    url = "rediss://" + url.slice("redis://".length);
+}
+const useTls = url.startsWith("rediss:") || url.includes("upstash.io");
 /**
  * BullMQ requires maxRetriesPerRequest: null.
  * Cloud Redis (Upstash, etc.) often resets idle TCP sockets; enableReadyCheck: false + retryStrategy

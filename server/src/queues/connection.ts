@@ -14,7 +14,12 @@ if (url.startsWith("https://") || url.startsWith("http://")) {
   );
 }
 
-const useTls = url.startsWith("rediss:");
+// Auto-upgrade Upstash redis:// to rediss:// so TLS is always active
+if (url.startsWith("redis://") && url.includes("upstash.io")) {
+  url = "rediss://" + url.slice("redis://".length);
+}
+
+const useTls = url.startsWith("rediss:") || url.includes("upstash.io");
 
 /**
  * BullMQ requires maxRetriesPerRequest: null.
