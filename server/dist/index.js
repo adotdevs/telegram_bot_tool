@@ -51,6 +51,7 @@ async function main() {
     app.listen(env.PORT, "0.0.0.0", () => {
         console.log(`API http://127.0.0.1:${env.PORT} (bound 0.0.0.0:${env.PORT})`);
     });
+    // Start background queue workers alongside the API (for single-service hosting on Render / Railway / VPS)
     if (process.env.RUN_WORKER !== "false") {
         startWorkers().catch((err) => console.error("[worker-init-error]", err));
     }

@@ -1,6 +1,5 @@
-import { Worker } from "bullmq";
+import { MongoWorker } from "./queues/mongoQueue.js";
 import { connectMongo } from "./db/mongo.js";
-import { connection } from "./queues/connection.js";
 import { Q_ADD_USER, Q_CAMPAIGN_TICK, Q_SCRAPE, Q_SEND_MESSAGE, Q_AUTO_POST } from "./queues/names.js";
 import {
   handleAddUser,
@@ -16,11 +15,11 @@ export async function startWorkers(): Promise<void> {
   const concurrency = 1;
 
   const workers = [
-    new Worker(Q_SCRAPE, async (job) => handleScrape(job), { connection, concurrency }),
-    new Worker(Q_ADD_USER, async (job) => handleAddUser(job), { connection, concurrency }),
-    new Worker(Q_SEND_MESSAGE, async (job) => handleSendMessage(job), { connection, concurrency }),
-    new Worker(Q_CAMPAIGN_TICK, async (job) => handleCampaignTick(job), { connection, concurrency: 1 }),
-    new Worker(Q_AUTO_POST, async (job) => handleAutoPost(job), { connection, concurrency: 1 }),
+    new MongoWorker(Q_SCRAPE, async (job) => handleScrape(job), { concurrency }),
+    new MongoWorker(Q_ADD_USER, async (job) => handleAddUser(job), { concurrency }),
+    new MongoWorker(Q_SEND_MESSAGE, async (job) => handleSendMessage(job), { concurrency }),
+    new MongoWorker(Q_CAMPAIGN_TICK, async (job) => handleCampaignTick(job), { concurrency: 1 }),
+    new MongoWorker(Q_AUTO_POST, async (job) => handleAutoPost(job), { concurrency: 1 }),
   ];
 
   for (const w of workers) {
@@ -31,7 +30,7 @@ export async function startWorkers(): Promise<void> {
 
   await resumeActiveAutoPostSchedules();
 
-  console.log("Workers listening on Redis queues (including auto-post)");
+  console.log("Workers listening on MongoDB queues (including auto-post)");
 }
 
 // Run standalone if launched via node worker.js or tsx worker.ts

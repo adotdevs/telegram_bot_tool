@@ -1,5 +1,4 @@
-import { Queue } from "bullmq";
-import { connection } from "./connection.js";
+import { MongoQueue } from "./mongoQueue.js";
 import { Q_ADD_USER, Q_CAMPAIGN_TICK, Q_SCRAPE, Q_SEND_MESSAGE, Q_AUTO_POST } from "./names.js";
 const defaultJobOpts = {
     attempts: 7,
@@ -7,11 +6,11 @@ const defaultJobOpts = {
     removeOnComplete: { count: 500 },
     removeOnFail: { count: 200 },
 };
-export const scrapeQueue = new Queue(Q_SCRAPE, { connection, defaultJobOptions: defaultJobOpts });
-export const addUserQueue = new Queue(Q_ADD_USER, { connection, defaultJobOptions: defaultJobOpts });
-export const sendMessageQueue = new Queue(Q_SEND_MESSAGE, { connection, defaultJobOptions: defaultJobOpts });
-export const campaignTickQueue = new Queue(Q_CAMPAIGN_TICK, { connection, defaultJobOptions: defaultJobOpts });
-export const autoPostQueue = new Queue(Q_AUTO_POST, { connection, defaultJobOptions: defaultJobOpts });
+export const scrapeQueue = new MongoQueue(Q_SCRAPE, { defaultJobOptions: defaultJobOpts });
+export const addUserQueue = new MongoQueue(Q_ADD_USER, { defaultJobOptions: defaultJobOpts });
+export const sendMessageQueue = new MongoQueue(Q_SEND_MESSAGE, { defaultJobOptions: defaultJobOpts });
+export const campaignTickQueue = new MongoQueue(Q_CAMPAIGN_TICK, { defaultJobOptions: defaultJobOpts });
+export const autoPostQueue = new MongoQueue(Q_AUTO_POST, { defaultJobOptions: defaultJobOpts });
 export async function enqueueScrape(campaignId) {
     await scrapeQueue.add("run", { campaignId }, { delay: 2000 });
 }

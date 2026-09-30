@@ -1,4 +1,4 @@
-import type { Job } from "bullmq";
+import type { Job } from "../queues/mongoQueue.js";
 export declare function handleAutoPost(job: Job<{
     scheduleId: string;
 }>): Promise<void>;

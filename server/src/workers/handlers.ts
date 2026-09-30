@@ -1,4 +1,4 @@
-import type { Job } from "bullmq";
+import type { Job } from "../queues/mongoQueue.js";
 import { Campaign } from "../models/Campaign.js";
 import type { CampaignDoc } from "../models/Campaign.js";
 import { CampaignUser } from "../models/CampaignUser.js";

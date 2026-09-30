@@ -227,9 +227,9 @@ r.post("/:id/run-now", requireAuth, async (req: AuthedRequest, res) => {
     await enqueueAutoPost(doc._id.toString(), 0);
     res.json({ ok: true, message: "Auto-post job enqueued immediately" });
   } catch (e: any) {
-    console.error("[auto-post] Run-now failed to enqueue to Redis:", e?.message || e);
+    console.error("[auto-post] Run-now failed to enqueue job:", e?.message || e);
     res.status(500).json({
-      error: `Redis Connection Error: ${e?.message || "Could not connect to Redis"}. Make sure your live REDIS_URL environment variable is set to an active Upstash/Redis connection string.`,
+      error: `Queue Error: ${e?.message || "Could not enqueue job"}.`,
     });
   }
 });

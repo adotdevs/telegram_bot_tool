@@ -1,4 +1,4 @@
-import type { Job } from "bullmq";
+import type { Job } from "../queues/mongoQueue.js";
 import { AutoPostSchedule } from "../models/AutoPostSchedule.js";
 import { TelegramAccount, type TelegramAccountDoc } from "../models/TelegramAccount.js";
 import { logAction } from "../services/logger.js";

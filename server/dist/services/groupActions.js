@@ -181,10 +181,12 @@ export async function postToGroup(account, groupInput, rawTemplate, opts) {
         if (!opts.clientRef && ownClient) {
             try {
                 await ownClient.destroy();
-            } catch {
+            }
+            catch {
                 try {
                     await ownClient.disconnect();
-                } catch {
+                }
+                catch {
                     // ignore
                 }
             }

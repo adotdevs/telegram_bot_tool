@@ -176,7 +176,8 @@ r.post("/:id/toggle", requireAuth, async (req, res) => {
         doc.lastLog = "Schedule resumed";
         try {
             await enqueueAutoPost(doc._id.toString(), 3000);
-        } catch (e) {
+        }
+        catch (e) {
             console.error("[auto-post] Failed to enqueue job on resume:", e?.message || e);
         }
     }
@@ -195,10 +196,11 @@ r.post("/:id/run-now", requireAuth, async (req, res) => {
     try {
         await enqueueAutoPost(doc._id.toString(), 0);
         res.json({ ok: true, message: "Auto-post job enqueued immediately" });
-    } catch (e) {
-        console.error("[auto-post] Run-now failed to enqueue to Redis:", e?.message || e);
+    }
+    catch (e) {
+        console.error("[auto-post] Run-now failed to enqueue job:", e?.message || e);
         res.status(500).json({
-            error: `Redis Connection Error: ${e?.message || "Could not connect to Redis"}. Make sure your live REDIS_URL environment variable is set to an active Upstash/Redis connection string.`,
+            error: `Queue Error: ${e?.message || "Could not enqueue job"}.`,
         });
     }
 });
