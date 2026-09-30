@@ -69,6 +69,21 @@ export async function handleScrape(job) {
     }
     const res = await scrapeGroupParticipants(account, campaign.sourceGroupUsername);
     if ("kind" in res) {
+        if (res.kind === "session_expired") {
+            await TelegramAccount.findByIdAndUpdate(account._id, {
+                status: "session_expired",
+                sessionError: res.message,
+            });
+            await logAction({
+                campaignId: campaign._id,
+                telegramAccountId: account._id,
+                action: "scrape",
+                level: "error",
+                success: false,
+                message: `Session expired for ${account.phoneNumber} (AUTH_KEY_UNREGISTERED). Re-login in Accounts tab.`,
+            });
+            throw new Error("Account session expired");
+        }
         if (res.kind === "flood")
             await markFloodWait(account._id, res.seconds);
         if (res.kind === "peer_flood")
@@ -150,6 +165,27 @@ export async function handleAddUser(job) {
     }
     const err = await addUserToTargetGroup(account, campaign, cu);
     if (err && "kind" in err) {
+        if (err.kind === "session_expired") {
+            await TelegramAccount.findByIdAndUpdate(account._id, {
+                status: "session_expired",
+                sessionError: err.message,
+            });
+            await logAction({
+                campaignId: campaign._id,
+                campaignUserId: cu._id,
+                telegramAccountId: account._id,
+                action: "add_user",
+                level: "error",
+                success: false,
+                message: `Session expired for ${account.phoneNumber} (AUTH_KEY_UNREGISTERED). Re-login in Accounts tab.`,
+            });
+            cu.status = "failed";
+            cu.lastError = "Account session expired";
+            await cu.save();
+            statsOf(campaign).failed += 1;
+            await campaign.save();
+            return;
+        }
         if (err.kind === "privacy") {
             cu.status = "skipped";
             cu.skipReason = "privacy";
@@ -263,6 +299,26 @@ export async function handleSendMessage(job) {
     await sleep(nextActionDelayMs());
     const err = await sendDirectMessage(account, cu, text, typingMs);
     if (err && "kind" in err) {
+        if (err.kind === "session_expired") {
+            await TelegramAccount.findByIdAndUpdate(account._id, {
+                status: "session_expired",
+                sessionError: err.message,
+            });
+            await logAction({
+                campaignId: campaign._id,
+                campaignUserId: cu._id,
+                telegramAccountId: account._id,
+                action: "send_message",
+                level: "error",
+                success: false,
+                message: `Session expired for ${account.phoneNumber} (AUTH_KEY_UNREGISTERED). Re-login in Accounts tab.`,
+            });
+            cu.lastError = "Account session expired";
+            await cu.save();
+            statsOf(campaign).failed += 1;
+            await campaign.save();
+            return;
+        }
         if (err.kind === "privacy") {
             cu.status = "skipped";
             cu.skipReason = "privacy_dm";

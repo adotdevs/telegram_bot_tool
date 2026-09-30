@@ -1,5 +1,5 @@
 import { Api } from "telegram";
-import { createClientForAccount, isFloodError, floodSeconds, isPeerFlood } from "../telegram/gramClient.js";
+import { createClientForAccount, isFloodError, floodSeconds, isPeerFlood, isSessionExpiredError, } from "../telegram/gramClient.js";
 import { maybeAiVary, synonymizeTemplate, varyStructure } from "./messageVariator.js";
 /**
  * Parses spintax format like "{Hi|Hello|Hey} {friend|buddy}!"
@@ -109,6 +109,13 @@ export async function postToGroup(account, groupInput, rawTemplate, opts) {
                 entity = await client.getEntity(ref);
             }
             catch (e) {
+                if (isSessionExpiredError(e)) {
+                    return {
+                        ok: false,
+                        error: `Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked session for account ${account.phoneNumber}. Re-login in Accounts tab.`,
+                        sessionExpired: true,
+                    };
+                }
                 return { ok: false, error: `Could not resolve group: ${e instanceof Error ? e.message : String(e)}` };
             }
             if (opts.autoJoin && entity) {
@@ -157,6 +164,13 @@ export async function postToGroup(account, groupInput, rawTemplate, opts) {
         return { ok: true, messageId: sent.id };
     }
     catch (e) {
+        if (isSessionExpiredError(e)) {
+            return {
+                ok: false,
+                error: `Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked session for account ${account.phoneNumber}. Re-login in Accounts tab.`,
+                sessionExpired: true,
+            };
+        }
         if (isFloodError(e)) {
             return { ok: false, error: `FLOOD_WAIT ${floodSeconds(e)}s` };
         }

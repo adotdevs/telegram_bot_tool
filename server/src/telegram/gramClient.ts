@@ -213,3 +213,48 @@ export function isUserPrivacyRestricted(err: unknown): boolean {
   const s = err instanceof Error ? err.message : String(err);
   return s.includes("USER_PRIVACY_RESTRICTED");
 }
+
+export function isSessionExpiredError(err: unknown): boolean {
+  const s = err instanceof Error ? err.message : String(err);
+  return (
+    s.includes("AUTH_KEY_UNREGISTERED") ||
+    s.includes("AUTH_KEY_DUPLICATED") ||
+    s.includes("AUTH_KEY_INVALID") ||
+    s.includes("SESSION_REVOKED") ||
+    s.includes("SESSION_EXPIRED") ||
+    s.includes("401") ||
+    s.includes("USER_DEACTIVATED") ||
+    s.includes("USER_DEACTIVATED_BAN")
+  );
+}
+
+export async function testAccountSession(
+  account: TelegramAccountDoc
+): Promise<{ ok: boolean; error?: string; username?: string; firstName?: string }> {
+  let client: TelegramClient | null = null;
+  try {
+    client = await createClientForAccount(account);
+    await Promise.race([
+      client.connect(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Telegram connection timeout (15s)")), 15000)
+      ),
+    ]);
+    const me: any = await client.getMe();
+    return {
+      ok: true,
+      username: me?.username,
+      firstName: me?.firstName,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  } finally {
+    if (client) {
+      try {
+        await client.disconnect();
+      } catch {}
+    }
+  }
+}
+

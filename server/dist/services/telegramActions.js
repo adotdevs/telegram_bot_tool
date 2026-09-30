@@ -1,7 +1,7 @@
 import { Api } from "telegram";
 import bigInt from "big-integer";
 import { createClientForAccount } from "../telegram/gramClient.js";
-import { isFloodError, floodSeconds, isPeerFlood, isUserPrivacyRestricted, } from "../telegram/gramClient.js";
+import { isFloodError, floodSeconds, isPeerFlood, isUserPrivacyRestricted, isSessionExpiredError, } from "../telegram/gramClient.js";
 export async function scrapeGroupParticipants(account, groupUsernameOrLink) {
     const client = await createClientForAccount(account);
     await client.connect();
@@ -23,6 +23,8 @@ export async function scrapeGroupParticipants(account, groupUsernameOrLink) {
         return { ok: true, users: usersOut };
     }
     catch (e) {
+        if (isSessionExpiredError(e))
+            return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
         if (isFloodError(e))
             return { kind: "flood", seconds: floodSeconds(e) };
         if (isPeerFlood(e))
@@ -86,6 +88,8 @@ export async function addUserToTargetGroup(account, campaign, cu) {
         }
     }
     catch (e) {
+        if (isSessionExpiredError(e))
+            return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
         if (isUserPrivacyRestricted(e))
             return { kind: "privacy" };
         if (isFloodError(e))
@@ -123,6 +127,8 @@ export async function sendDirectMessage(account, cu, text, typingMs, clientRef) 
         await client.sendMessage(peer, { message: text });
     }
     catch (e) {
+        if (isSessionExpiredError(e))
+            return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
         if (isUserPrivacyRestricted(e))
             return { kind: "privacy" };
         if (isFloodError(e))

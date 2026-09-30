@@ -51,6 +51,7 @@ export default function AutoPostPage() {
 
   // Form State
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formName, setFormName] = useState("");
   const [formGroups, setFormGroups] = useState("");
   const [formTemplate, setFormTemplate] = useState(
@@ -76,6 +77,40 @@ export default function AutoPostPage() {
     mode: string;
   } | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  function resetForm() {
+    setEditingId(null);
+    setFormName("");
+    setFormGroups("");
+    setFormTemplate(
+      "{Hey|Hello|Hi} everyone! {Check out|Discover} our official updates here: https://t.me/example"
+    );
+    setFormInterval(60);
+    setFormDelay(12);
+    setFormAccounts([]);
+    setFormAutoJoin(true);
+    setFormUseAi(false);
+    setShowForm(false);
+    setAiResult(null);
+    setAiError(null);
+    setShowAiGenerator(false);
+  }
+
+  function startEditing(item: AutoPostSchedule) {
+    setEditingId(item._id);
+    setFormName(item.name);
+    setFormGroups(item.targetGroups.join("\n"));
+    setFormTemplate(item.messageTemplate);
+    setFormInterval(item.intervalMinutes);
+    setFormDelay(item.delayBetweenGroupsSeconds || 12);
+    setFormAccounts(item.accountIds || []);
+    setFormAutoJoin(item.autoJoinGroups ?? true);
+    setFormUseAi(item.useAiVariations ?? false);
+    setShowForm(true);
+    setAiResult(null);
+    setAiError(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function loadData() {
     try {
@@ -104,7 +139,7 @@ export default function AutoPostPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleCreate(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setErr(null);
@@ -121,30 +156,44 @@ export default function AutoPostPage() {
     }
 
     try {
-      await api("/api/auto-post", {
-        method: "POST",
-        json: {
-          name: formName,
-          targetGroups: groupList,
-          messageTemplate: formTemplate,
-          intervalMinutes: Number(formInterval),
-          delayBetweenGroupsSeconds: Number(formDelay),
-          accountIds: formAccounts.length > 0 ? formAccounts : undefined,
-          autoJoinGroups: formAutoJoin,
-          useAiVariations: formUseAi,
-          status: "active",
-        },
-      });
+      if (editingId) {
+        await api(`/api/auto-post/${editingId}`, {
+          method: "PATCH",
+          json: {
+            name: formName.trim(),
+            targetGroups: groupList,
+            messageTemplate: formTemplate.trim(),
+            intervalMinutes: Number(formInterval),
+            delayBetweenGroupsSeconds: Number(formDelay),
+            accountIds: formAccounts,
+            autoJoinGroups: formAutoJoin,
+            useAiVariations: formUseAi,
+          },
+        });
+        setActionMessage(`Auto-post task "${formName.trim()}" updated successfully!`);
+      } else {
+        await api("/api/auto-post", {
+          method: "POST",
+          json: {
+            name: formName.trim(),
+            targetGroups: groupList,
+            messageTemplate: formTemplate.trim(),
+            intervalMinutes: Number(formInterval),
+            delayBetweenGroupsSeconds: Number(formDelay),
+            accountIds: formAccounts.length > 0 ? formAccounts : undefined,
+            autoJoinGroups: formAutoJoin,
+            useAiVariations: formUseAi,
+            status: "active",
+          },
+        });
+        setActionMessage("Scheduled auto-post task created and started!");
+      }
 
-      // Reset form
-      setFormName("");
-      setFormGroups("");
-      setShowForm(false);
-      setActionMessage("Scheduled auto-post task created and started!");
+      resetForm();
       setTimeout(() => setActionMessage(null), 5000);
       await loadData();
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Failed to create task");
+      setErr(e instanceof Error ? e.message : "Failed to save task");
     } finally {
       setSubmitting(false);
     }
@@ -266,10 +315,17 @@ export default function AutoPostPage() {
         </div>
         <button
           type="button"
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            if (showForm) {
+              resetForm();
+            } else {
+              resetForm();
+              setShowForm(true);
+            }
+          }}
           className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 focus:outline-none dark:bg-emerald-700 dark:hover:bg-emerald-600"
         >
-          {showForm ? "Cancel" : "+ New Auto-Post Task"}
+          {showForm ? (editingId ? "Cancel Edit" : "Cancel") : "+ New Auto-Post Task"}
         </button>
       </div>
 
@@ -282,6 +338,32 @@ export default function AutoPostPage() {
       {actionMessage && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300">
           {actionMessage}
+        </div>
+      )}
+
+      {/* Global Session Expired Warning Banner */}
+      {accounts.some((a) => a.status === "session_expired") && (
+        <div className="rounded-xl border border-rose-300 bg-rose-50 p-4 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/40">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">🚨</span>
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold text-rose-900 dark:text-rose-200">
+                  Telegram Session Expired Warning
+                </h3>
+                <p className="text-xs text-rose-700 dark:text-rose-300">
+                  Account(s) <strong>{accounts.filter((a) => a.status === "session_expired").map((a) => a.phoneNumber).join(", ")}</strong> have an expired login session (<code>401: AUTH_KEY_UNREGISTERED</code>). Group auto-posting will fail for these accounts until re-linked.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/accounts"
+              className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+            >
+              <span>Fix in Accounts</span>
+              <span>→</span>
+            </Link>
+          </div>
         </div>
       )}
 
@@ -314,15 +396,17 @@ export default function AutoPostPage() {
       {/* Create Task Form Modal/Section */}
       {showForm && (
         <form
-          onSubmit={handleCreate}
+          onSubmit={handleSubmit}
           className="space-y-6 rounded-2xl border border-emerald-500/30 bg-white p-6 shadow-md dark:border-emerald-500/20 dark:bg-zinc-900"
         >
           <div className="border-b border-zinc-100 pb-3 dark:border-zinc-800">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Create New Auto-Post Task
+              {editingId ? "✏️ Edit Auto-Post Task" : "Create New Auto-Post Task"}
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Configure your message, target Telegram groups, and recurring schedule interval.
+              {editingId
+                ? `Editing task "${formName || "Untitled"}". Changes will apply to upcoming waves.`
+                : "Configure your message, target Telegram groups, and recurring schedule interval."}
             </p>
           </div>
 
@@ -380,10 +464,12 @@ export default function AutoPostPage() {
               ) : (
                 accounts.map((acc) => {
                   const isChecked = formAccounts.includes(acc._id);
+                  const isExpired = acc.status === "session_expired";
                   return (
                     <button
                       key={acc._id}
                       type="button"
+                      disabled={isExpired}
                       onClick={() => {
                         if (isChecked) {
                           setFormAccounts(formAccounts.filter((id) => id !== acc._id));
@@ -392,17 +478,31 @@ export default function AutoPostPage() {
                         }
                       }}
                       className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                        isChecked
-                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/50 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+                        isExpired
+                          ? "cursor-not-allowed border-rose-300 bg-rose-50 text-rose-800 opacity-80 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-300"
+                          : isChecked
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500/50 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                       }`}
+                      title={isExpired ? "Session expired! Re-link in Accounts tab" : undefined}
                     >
                       <span
                         className={`h-2 w-2 rounded-full ${
-                          acc.status === "active" ? "bg-emerald-500" : "bg-zinc-400"
+                          isExpired
+                            ? "bg-rose-500 animate-pulse"
+                            : acc.status === "active"
+                              ? "bg-emerald-500"
+                              : "bg-zinc-400"
                         }`}
                       />
-                      {acc.phoneNumber} {acc.label ? `(${acc.label})` : ""}
+                      <span>
+                        {acc.phoneNumber} {acc.label ? `(${acc.label})` : ""}
+                      </span>
+                      {isExpired && (
+                        <span className="font-semibold text-rose-600 dark:text-rose-400">
+                          (Session Expired)
+                        </span>
+                      )}
                     </button>
                   );
                 })
@@ -708,7 +808,7 @@ export default function AutoPostPage() {
           <div className="flex justify-end gap-3 border-t border-zinc-100 pt-4 dark:border-zinc-800">
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={resetForm}
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
               Cancel
@@ -718,7 +818,7 @@ export default function AutoPostPage() {
               disabled={submitting}
               className="rounded-lg bg-emerald-600 px-6 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 dark:bg-emerald-700"
             >
-              {submitting ? "Saving..." : "Start Auto-Poster Task"}
+              {submitting ? "Saving..." : editingId ? "✓ Save Changes" : "Start Auto-Poster Task"}
             </button>
           </div>
         </form>
@@ -816,6 +916,14 @@ export default function AutoPostPage() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => startEditing(item)}
+                        title="Edit schedule, groups, accounts, or template"
+                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setSelectedLogs(item)}
                         className="rounded-md border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
                       >
@@ -871,9 +979,34 @@ export default function AutoPostPage() {
                   </div>
 
                   {item.lastLog && (
-                    <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="font-mono text-[11px] text-zinc-400">Last activity:</span>{" "}
-                      {item.lastLog}
+                    <div
+                      className={`mt-2.5 rounded-lg px-3 py-2 text-xs ${
+                        item.lastLog.toLowerCase().includes("session expired") ||
+                        item.lastLog.toLowerCase().includes("auth_key_unregistered")
+                          ? "border border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200"
+                          : "text-zinc-500 dark:text-zinc-400"
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-[11px] font-semibold">
+                            {item.lastLog.toLowerCase().includes("session expired") ||
+                            item.lastLog.toLowerCase().includes("auth_key_unregistered")
+                              ? "⚠️ Session Alert:"
+                              : "Last activity:"}
+                          </span>{" "}
+                          {item.lastLog}
+                        </div>
+                        {(item.lastLog.toLowerCase().includes("session expired") ||
+                          item.lastLog.toLowerCase().includes("auth_key_unregistered")) && (
+                          <Link
+                            href="/accounts"
+                            className="font-bold underline text-rose-700 hover:text-rose-900 dark:text-rose-300"
+                          >
+                            Re-link in Accounts →
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -936,6 +1069,15 @@ export default function AutoPostPage() {
                         </span>
                       </div>
                       <p className="text-zinc-600 dark:text-zinc-300">{log.message}</p>
+                      {(log.message.toLowerCase().includes("session expired") ||
+                        log.message.toLowerCase().includes("auth_key_unregistered")) && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-rose-700 dark:text-rose-300">
+                          <span>👉 Action required:</span>
+                          <Link href="/accounts" className="underline hover:text-rose-900">
+                            Re-login this account in Accounts tab →
+                          </Link>
+                        </div>
+                      )}
                     </div>
                     <span className="whitespace-nowrap font-mono text-[10px] text-zinc-400">
                       {new Date(log.timestamp).toLocaleTimeString([], {

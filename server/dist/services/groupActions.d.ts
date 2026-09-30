@@ -7,6 +7,7 @@ export type PostResult = {
     ok: false;
     error: string;
     skipped?: boolean;
+    sessionExpired?: boolean;
 };
 /**
  * Parses spintax format like "{Hi|Hello|Hey} {friend|buddy}!"

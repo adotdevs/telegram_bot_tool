@@ -10,6 +10,9 @@ export type ActionErr = {
 } | {
     kind: "privacy";
 } | {
+    kind: "session_expired";
+    message: string;
+} | {
     kind: "other";
     message: string;
 };

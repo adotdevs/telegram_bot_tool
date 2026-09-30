@@ -8,9 +8,10 @@ const telegramAccountSchema = new Schema({
     warmUpMode: { type: Boolean, default: false },
     status: {
         type: String,
-        enum: ["active", "paused", "flood_wait", "peer_flood_risky", "disabled"],
+        enum: ["active", "paused", "flood_wait", "peer_flood_risky", "disabled", "session_expired"],
         default: "active",
     },
+    sessionError: { type: String },
     floodWaitUntil: { type: Date },
     peerFloodMarkedAt: { type: Date },
     /** Rolling hourly windows (UTC hour bucket) */

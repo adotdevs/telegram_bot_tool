@@ -33,4 +33,11 @@ export declare function isFloodError(err: unknown): boolean;
 export declare function floodSeconds(err: unknown): number;
 export declare function isPeerFlood(err: unknown): boolean;
 export declare function isUserPrivacyRestricted(err: unknown): boolean;
+export declare function isSessionExpiredError(err: unknown): boolean;
+export declare function testAccountSession(account: TelegramAccountDoc): Promise<{
+    ok: boolean;
+    error?: string;
+    username?: string;
+    firstName?: string;
+}>;
 //# sourceMappingURL=gramClient.d.ts.map

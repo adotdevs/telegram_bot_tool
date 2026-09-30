@@ -1,12 +1,18 @@
 import { Api } from "telegram";
 import type { TelegramClient } from "telegram";
 import type { TelegramAccountDoc } from "../models/TelegramAccount.js";
-import { createClientForAccount, isFloodError, floodSeconds, isPeerFlood } from "../telegram/gramClient.js";
+import {
+  createClientForAccount,
+  isFloodError,
+  floodSeconds,
+  isPeerFlood,
+  isSessionExpiredError,
+} from "../telegram/gramClient.js";
 import { maybeAiVary, synonymizeTemplate, varyStructure } from "./messageVariator.js";
 
 export type PostResult =
   | { ok: true; messageId?: number }
-  | { ok: false; error: string; skipped?: boolean };
+  | { ok: false; error: string; skipped?: boolean; sessionExpired?: boolean };
 
 /**
  * Parses spintax format like "{Hi|Hello|Hey} {friend|buddy}!"
@@ -129,6 +135,13 @@ export async function postToGroup(
       try {
         entity = await client.getEntity(ref);
       } catch (e: unknown) {
+        if (isSessionExpiredError(e)) {
+          return {
+            ok: false,
+            error: `Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked session for account ${account.phoneNumber}. Re-login in Accounts tab.`,
+            sessionExpired: true,
+          };
+        }
         return { ok: false, error: `Could not resolve group: ${e instanceof Error ? e.message : String(e)}` };
       }
 
@@ -180,6 +193,13 @@ export async function postToGroup(
 
     return { ok: true, messageId: sent.id };
   } catch (e: unknown) {
+    if (isSessionExpiredError(e)) {
+      return {
+        ok: false,
+        error: `Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked session for account ${account.phoneNumber}. Re-login in Accounts tab.`,
+        sessionExpired: true,
+      };
+    }
     if (isFloodError(e)) {
       return { ok: false, error: `FLOOD_WAIT ${floodSeconds(e)}s` };
     }

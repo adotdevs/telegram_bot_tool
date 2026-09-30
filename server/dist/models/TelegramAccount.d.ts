@@ -2,7 +2,7 @@ import mongoose, { type InferSchemaType, type Model } from "mongoose";
 declare const telegramAccountSchema: mongoose.Schema<any, mongoose.Model<any, any, any, any, any, any>, {}, {}, {}, {}, {
     timestamps: true;
 }, {
-    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled";
+    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled" | "session_expired";
     phoneNumber: string;
     sessionEncrypted: string;
     warmUpMode: boolean;
@@ -11,10 +11,11 @@ declare const telegramAccountSchema: mongoose.Schema<any, mongoose.Model<any, an
     dmsInWindow: number;
     label?: string | null | undefined;
     proxyUrl?: string | null | undefined;
+    sessionError?: string | null | undefined;
     floodWaitUntil?: NativeDate | null | undefined;
     peerFloodMarkedAt?: NativeDate | null | undefined;
 } & mongoose.DefaultTimestampProps, mongoose.Document<unknown, {}, mongoose.FlatRecord<{
-    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled";
+    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled" | "session_expired";
     phoneNumber: string;
     sessionEncrypted: string;
     warmUpMode: boolean;
@@ -23,12 +24,13 @@ declare const telegramAccountSchema: mongoose.Schema<any, mongoose.Model<any, an
     dmsInWindow: number;
     label?: string | null | undefined;
     proxyUrl?: string | null | undefined;
+    sessionError?: string | null | undefined;
     floodWaitUntil?: NativeDate | null | undefined;
     peerFloodMarkedAt?: NativeDate | null | undefined;
 } & mongoose.DefaultTimestampProps>, {}, mongoose.MergeType<mongoose.DefaultSchemaOptions, {
     timestamps: true;
 }>> & mongoose.FlatRecord<{
-    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled";
+    status: "active" | "paused" | "flood_wait" | "peer_flood_risky" | "disabled" | "session_expired";
     phoneNumber: string;
     sessionEncrypted: string;
     warmUpMode: boolean;
@@ -37,6 +39,7 @@ declare const telegramAccountSchema: mongoose.Schema<any, mongoose.Model<any, an
     dmsInWindow: number;
     label?: string | null | undefined;
     proxyUrl?: string | null | undefined;
+    sessionError?: string | null | undefined;
     floodWaitUntil?: NativeDate | null | undefined;
     peerFloodMarkedAt?: NativeDate | null | undefined;
 } & mongoose.DefaultTimestampProps> & {

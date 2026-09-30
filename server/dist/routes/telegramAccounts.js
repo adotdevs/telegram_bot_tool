@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { TelegramAccount } from "../models/TelegramAccount.js";
-import { createClientForOtpVerify, createEmptyClient, sendLoginCode, completeLoginWithOtp, } from "../telegram/gramClient.js";
+import { createClientForOtpVerify, createEmptyClient, sendLoginCode, completeLoginWithOtp, testAccountSession, isSessionExpiredError, } from "../telegram/gramClient.js";
 import { encryptSession } from "../crypto/sessionCrypto.js";
 import { requireAuth } from "../middleware/auth.js";
 import { logAction } from "../services/logger.js";
@@ -97,7 +97,7 @@ r.patch("/:id", requireAuth, async (req, res) => {
         .object({
         warmUpMode: z.boolean().optional(),
         proxyUrl: z.string().nullable().optional(),
-        status: z.enum(["active", "paused", "disabled"]).optional(),
+        status: z.enum(["active", "paused", "disabled", "session_expired"]).optional(),
     })
         .safeParse(req.body);
     if (!patch.success) {
@@ -111,9 +111,48 @@ r.patch("/:id", requireAuth, async (req, res) => {
     }
     res.json(acc);
 });
+r.post("/:id/test", requireAuth, async (req, res) => {
+    const acc = await TelegramAccount.findById(req.params.id);
+    if (!acc) {
+        res.status(404).json({ error: "Account not found" });
+        return;
+    }
+    const result = await testAccountSession(acc);
+    if (result.ok) {
+        acc.status = "active";
+        acc.sessionError = undefined;
+        await acc.save();
+        res.json({
+            ok: true,
+            status: "active",
+            message: `Session is valid! Logged in as ${result.username ? "@" + result.username : result.firstName || acc.phoneNumber}`,
+            user: { username: result.username, firstName: result.firstName },
+        });
+    }
+    else {
+        const isExpired = isSessionExpiredError(result.error);
+        if (isExpired) {
+            acc.status = "session_expired";
+            acc.sessionError = result.error;
+        }
+        await acc.save();
+        res.json({
+            ok: false,
+            status: acc.status,
+            isExpired,
+            error: result.error || "Connection test failed",
+        });
+    }
+});
 r.delete("/:id", requireAuth, async (req, res) => {
-    await TelegramAccount.findByIdAndDelete(req.params.id);
-    res.json({ ok: true });
+    const acc = await TelegramAccount.findByIdAndDelete(req.params.id);
+    if (acc) {
+        await logAction({
+            action: "other",
+            message: `Telegram account deleted: ${acc.phoneNumber}`,
+        });
+    }
+    res.json({ ok: true, message: "Account deleted successfully" });
 });
 export default r;
 //# sourceMappingURL=telegramAccounts.js.map

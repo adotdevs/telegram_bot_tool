@@ -3,7 +3,7 @@ import { TelegramAccount } from "../models/TelegramAccount.js";
 import { logAction } from "../services/logger.js";
 import { postToGroup } from "../services/groupActions.js";
 import { enqueueAutoPost } from "../queues/setup.js";
-import { createClientForAccount } from "../telegram/gramClient.js";
+import { createClientForAccount, isSessionExpiredError } from "../telegram/gramClient.js";
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -37,13 +37,20 @@ export async function handleAutoPost(job) {
         });
     }
     if (accounts.length === 0) {
-        schedule.lastLog = "Error: No active Telegram account linked";
+        const expiredAccounts = await TelegramAccount.find({
+            status: "session_expired",
+        });
+        const expiredPhone = expiredAccounts.map((a) => a.phoneNumber).join(", ");
+        const failMsg = expiredAccounts.length > 0
+            ? `⚠️ Auto-post stopped: Session expired for account (${expiredPhone}). Please delete & re-login in Accounts.`
+            : "Error: No active Telegram account linked. Link an account in Accounts tab.";
+        schedule.lastLog = failMsg;
         schedule.recentLogs.unshift({
             timestamp: new Date(),
             group: "All",
-            accountPhone: "None",
+            accountPhone: expiredPhone || "None",
             status: "failed",
-            message: "No active Telegram account available to post.",
+            message: failMsg,
         });
         if (schedule.recentLogs.length > 30)
             schedule.recentLogs.pop();
@@ -66,12 +73,42 @@ export async function handleAutoPost(job) {
             const accId = account._id.toString();
             let client = clientMap.get(accId);
             if (!client || !client.connected) {
-                client = await createClientForAccount(account);
-                await Promise.race([
-                    client.connect(),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error("Telegram connection timeout (25s)")), 25000)),
-                ]);
-                clientMap.set(accId, client);
+                try {
+                    client = await createClientForAccount(account);
+                    await Promise.race([
+                        client.connect(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error("Telegram connection timeout (25s)")), 25000)),
+                    ]);
+                    clientMap.set(accId, client);
+                }
+                catch (connErr) {
+                    failCount++;
+                    const connMsg = connErr instanceof Error ? connErr.message : String(connErr);
+                    if (isSessionExpiredError(connErr)) {
+                        await TelegramAccount.findByIdAndUpdate(account._id, {
+                            status: "session_expired",
+                            sessionError: connMsg,
+                        });
+                        const sessionAlert = `⚠️ Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked login for account ${account.phoneNumber}. Delete & re-login in Accounts tab.`;
+                        schedule.lastLog = sessionAlert;
+                        schedule.recentLogs.unshift({
+                            timestamp: new Date(),
+                            group,
+                            accountPhone: account.phoneNumber,
+                            status: "failed",
+                            message: sessionAlert,
+                        });
+                        continue;
+                    }
+                    schedule.recentLogs.unshift({
+                        timestamp: new Date(),
+                        group,
+                        accountPhone: account.phoneNumber,
+                        status: "failed",
+                        message: `Connection failed: ${connMsg}`,
+                    });
+                    continue;
+                }
             }
             try {
                 const res = await postToGroup(account, group, schedule.messageTemplate, {
@@ -93,26 +130,60 @@ export async function handleAutoPost(job) {
                 else {
                     failCount++;
                     console.warn(`[auto-post] [${schedule.name}] Group issue: ${group} -> ${res.error}`);
-                    schedule.recentLogs.unshift({
-                        timestamp: new Date(),
-                        group,
-                        accountPhone: account.phoneNumber,
-                        status: res.skipped ? "skipped" : "failed",
-                        message: res.error,
-                    });
+                    if (res.sessionExpired || isSessionExpiredError(res.error)) {
+                        await TelegramAccount.findByIdAndUpdate(account._id, {
+                            status: "session_expired",
+                            sessionError: res.error,
+                        });
+                        const sessionAlert = `⚠️ Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked login for account ${account.phoneNumber}. Delete & re-login in Accounts tab.`;
+                        schedule.lastLog = sessionAlert;
+                        schedule.recentLogs.unshift({
+                            timestamp: new Date(),
+                            group,
+                            accountPhone: account.phoneNumber,
+                            status: "failed",
+                            message: sessionAlert,
+                        });
+                    }
+                    else {
+                        schedule.recentLogs.unshift({
+                            timestamp: new Date(),
+                            group,
+                            accountPhone: account.phoneNumber,
+                            status: res.skipped ? "skipped" : "failed",
+                            message: res.error,
+                        });
+                    }
                 }
             }
             catch (err) {
                 failCount++;
                 const msg = err instanceof Error ? err.message : String(err);
                 console.error(`[auto-post] [${schedule.name}] Error posting to: ${group} ->`, msg);
-                schedule.recentLogs.unshift({
-                    timestamp: new Date(),
-                    group,
-                    accountPhone: account.phoneNumber,
-                    status: "failed",
-                    message: msg,
-                });
+                if (isSessionExpiredError(err)) {
+                    await TelegramAccount.findByIdAndUpdate(account._id, {
+                        status: "session_expired",
+                        sessionError: msg,
+                    });
+                    const sessionAlert = `⚠️ Session Expired (AUTH_KEY_UNREGISTERED): Telegram revoked login for account ${account.phoneNumber}. Delete & re-login in Accounts tab.`;
+                    schedule.lastLog = sessionAlert;
+                    schedule.recentLogs.unshift({
+                        timestamp: new Date(),
+                        group,
+                        accountPhone: account.phoneNumber,
+                        status: "failed",
+                        message: sessionAlert,
+                    });
+                }
+                else {
+                    schedule.recentLogs.unshift({
+                        timestamp: new Date(),
+                        group,
+                        accountPhone: account.phoneNumber,
+                        status: "failed",
+                        message: msg,
+                    });
+                }
             }
             // Keep only last 30 logs
             while (schedule.recentLogs.length > 30) {

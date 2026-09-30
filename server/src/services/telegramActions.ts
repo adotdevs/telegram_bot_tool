@@ -10,12 +10,14 @@ import {
   floodSeconds,
   isPeerFlood,
   isUserPrivacyRestricted,
+  isSessionExpiredError,
 } from "../telegram/gramClient.js";
 
 export type ActionErr =
   | { kind: "flood"; seconds: number }
   | { kind: "peer_flood" }
   | { kind: "privacy" }
+  | { kind: "session_expired"; message: string }
   | { kind: "other"; message: string };
 
 export async function scrapeGroupParticipants(
@@ -48,6 +50,7 @@ export async function scrapeGroupParticipants(
     }
     return { ok: true, users: usersOut };
   } catch (e: unknown) {
+    if (isSessionExpiredError(e)) return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
     if (isFloodError(e)) return { kind: "flood", seconds: floodSeconds(e) };
     if (isPeerFlood(e)) return { kind: "peer_flood" };
     return { kind: "other", message: e instanceof Error ? e.message : String(e) };
@@ -112,6 +115,7 @@ export async function addUserToTargetGroup(
       return { kind: "other", message: "Unsupported target chat type" };
     }
   } catch (e: unknown) {
+    if (isSessionExpiredError(e)) return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
     if (isUserPrivacyRestricted(e)) return { kind: "privacy" };
     if (isFloodError(e)) return { kind: "flood", seconds: floodSeconds(e) };
     if (isPeerFlood(e)) return { kind: "peer_flood" };
@@ -155,6 +159,7 @@ export async function sendDirectMessage(
 
     await client.sendMessage(peer as never, { message: text });
   } catch (e: unknown) {
+    if (isSessionExpiredError(e)) return { kind: "session_expired", message: e instanceof Error ? e.message : String(e) };
     if (isUserPrivacyRestricted(e)) return { kind: "privacy" };
     if (isFloodError(e)) return { kind: "flood", seconds: floodSeconds(e) };
     if (isPeerFlood(e)) return { kind: "peer_flood" };
